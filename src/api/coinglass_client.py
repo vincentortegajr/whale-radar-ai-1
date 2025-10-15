@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 import json
 from src.utils.logger_setup import setup_logger
 from src.utils.config import settings
+from src.utils.validators import validate_api_response, validate_symbol, RateLimiter
+from src.utils.error_handler import APIError, RateLimitError, async_handle_errors, retry_strategy
+from src.utils.monitoring import performance_monitor, monitor_api_call
 
 logger = setup_logger(__name__)
 
@@ -21,42 +24,54 @@ class CoinGlassClient:
         self.session: Optional[aiohttp.ClientSession] = None
         
         # Rate limiting
-        self.calls_per_second = settings.api_calls_per_second
-        self.last_call_time = 0
-        self.call_times: List[float] = []
+        self.rate_limiter = RateLimiter(settings.api_calls_per_second)
+        
+        # Connection pooling
+        self.connector = aiohttp.TCPConnector(
+            limit=100,  # Total connection pool size
+            limit_per_host=30,  # Per-host connection limit
+            ttl_dns_cache=300  # DNS cache timeout
+        )
+        
+        # Session configuration
+        self.timeout = aiohttp.ClientTimeout(
+            total=30,  # Total timeout
+            connect=5,  # Connection timeout
+            sock_read=10  # Socket read timeout
+        )
         
     async def __aenter__(self):
         """Async context manager entry"""
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(
+            connector=self.connector,
+            timeout=self.timeout,
+            headers={"User-Agent": "WhaleRadar.ai/1.0"}
+        )
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit"""
         if self.session:
             await self.session.close()
+        await self.connector.close()
             
     async def _rate_limit(self):
         """Implement rate limiting"""
-        now = time.time()
+        if not self.rate_limiter.can_make_call():
+            # Calculate wait time
+            await asyncio.sleep(0.1)  # Small delay before retry
+            if not self.rate_limiter.can_make_call():
+                raise RateLimitError(retry_after=1)
         
-        # Remove calls older than 1 second
-        self.call_times = [t for t in self.call_times if now - t < 1]
+        self.rate_limiter.record_call()
         
-        # If we've hit the rate limit, wait
-        if len(self.call_times) >= self.calls_per_second:
-            sleep_time = 1 - (now - self.call_times[0])
-            if sleep_time > 0:
-                await asyncio.sleep(sleep_time)
-                
-        # Record this call
-        self.call_times.append(now)
-        
+    @async_handle_errors
     async def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
-        """Make API request with retry logic"""
-        await self._rate_limit()
+        """Make API request with enhanced error handling and monitoring"""
         
-        if not self.session:
-            self.session = aiohttp.ClientSession()
+        # Input validation
+        if not endpoint.startswith('/'):
+            endpoint = f'/{endpoint}'
             
         url = f"{self.base_url}{endpoint}"
         headers = {
@@ -65,35 +80,83 @@ class CoinGlassClient:
             "Accept": "application/json"
         }
         
-        for attempt in range(3):
+        # Execute with retry strategy
+        async def _execute():
+            await self._rate_limit()
+            
+            if not self.session:
+                raise APIError("Session not initialized. Use 'async with' context manager.")
+            
+            start_time = time.time()
+            
             try:
                 async with self.session.get(url, headers=headers, params=params) as response:
+                    response_text = await response.text()
+                    duration = time.time() - start_time
+                    
+                    # Record metric
+                    performance_monitor.record_api_call(
+                        endpoint, duration, response.status, response.status == 200
+                    )
+                    
                     if response.status == 200:
-                        data = await response.json()
-                        return data
-                    elif response.status == 429:  # Rate limited
-                        logger.warning(f"Rate limited, waiting {2 ** attempt} seconds...")
-                        await asyncio.sleep(2 ** attempt)
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"API error {response.status}: {error_text}")
-                        raise Exception(f"API error {response.status}: {error_text}")
+                        try:
+                            data = json.loads(response_text)
+                            
+                            # Validate response structure
+                            if not validate_api_response(data, ['success', 'data']):
+                                raise APIError(f"Invalid response structure: {response_text[:200]}")
+                                
+                            return data
+                            
+                        except json.JSONDecodeError as e:
+                            raise APIError(f"Invalid JSON response: {e}")
+                            
+                    elif response.status == 429:
+                        # Extract retry-after header if available
+                        retry_after = response.headers.get('Retry-After', 60)
+                        raise RateLimitError(retry_after=int(retry_after))
                         
-            except Exception as e:
-                logger.error(f"Request failed (attempt {attempt + 1}/3): {e}")
-                if attempt == 2:
-                    raise
-                await asyncio.sleep(2 ** attempt)
+                    elif response.status == 401:
+                        raise APIError("Invalid API key", status_code=401)
+                        
+                    elif response.status == 403:
+                        raise APIError("Access forbidden - check API permissions", status_code=403)
+                        
+                    else:
+                        raise APIError(
+                            f"API request failed: {response_text[:500]}", 
+                            status_code=response.status
+                        )
+                        
+            except asyncio.TimeoutError:
+                duration = time.time() - start_time
+                performance_monitor.record_api_call(endpoint, duration, None, False)
+                raise APIError("Request timeout", status_code=408)
                 
-        raise Exception("Max retries exceeded")
+            except aiohttp.ClientError as e:
+                duration = time.time() - start_time
+                performance_monitor.record_api_call(endpoint, duration, None, False)
+                raise APIError(f"Network error: {e}")
+                
+        return await retry_strategy.execute_with_retry(_execute)
         
     # Visual Screener Endpoints
+    @monitor_api_call(performance_monitor, "visual_screener_price_oi")
     async def get_visual_screener_price_oi(self, timeframe: str = "5m") -> List[Dict]:
         """Get Price vs Open Interest change data"""
+        from src.utils.validators import validate_timeframe
+        
+        if not validate_timeframe(timeframe):
+            raise ValueError(f"Invalid timeframe: {timeframe}")
+            
         logger.info(f"Fetching Price vs OI screener data (timeframe: {timeframe})")
         endpoint = "/api/v4/perpetual/visual-screener/price-oi-change"
         params = {"timeframe": timeframe}
-        return await self._make_request(endpoint, params)
+        response = await self._make_request(endpoint, params)
+        
+        # Return data array from response
+        return response.get('data', [])
         
     async def get_visual_screener_price_volume(self, timeframe: str = "5m") -> List[Dict]:
         """Get Price vs Volume change data"""
