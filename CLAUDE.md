@@ -192,7 +192,7 @@ def calculate_scale_zones(liquidation_clusters, current_price):
 - [x] ALL Timeframe Liquidation Levels (12h to 1y)
 - [x] Liquidation Imbalance Scoring
 - [x] RSI Extreme Verification with Liquidations
-- [x] RSI Neutral Zone Exclusion (45-55) for API optimization
+- [x] RSI EXTREMES ONLY Mode (≤30 and ≥70 only) for maximum API efficiency
 - [x] Whale Target Predictions
 - [x] Referral Links Integration (CoinGlass & Bybit)
 

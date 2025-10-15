@@ -77,13 +77,7 @@ class RSIAnalyzer:
             symbol = coin.get("symbol")
             rsi = coin.get("rsi", 50)
             
-            # Skip neutral zone if requested (saves API calls)
-            if exclude_neutral and 45 <= rsi <= 55:
-                neutral_count += 1
-                logger.debug(f"Skipping neutral coin {symbol} with RSI {rsi}")
-                continue
-            
-            # Check for extremes
+            # ONLY include extreme oversold (≤30) or overbought (≥70)
             if rsi <= self.oversold_threshold:
                 extreme_coins.append({
                     "symbol": symbol,
@@ -98,26 +92,16 @@ class RSIAnalyzer:
                     "status": "OVERBOUGHT",
                     "timeframe": timeframe
                 })
-            elif rsi < 45:  # Weak but not oversold
-                extreme_coins.append({
-                    "symbol": symbol,
-                    "rsi": rsi,
-                    "status": "WEAK",
-                    "timeframe": timeframe
-                })
-            elif rsi > 55:  # Strong but not overbought
-                extreme_coins.append({
-                    "symbol": symbol,
-                    "rsi": rsi,
-                    "status": "STRONG",
-                    "timeframe": timeframe
-                })
+            else:
+                # Skip everything between 31-69
+                neutral_count += 1
+                logger.debug(f"Skipping non-extreme coin {symbol} with RSI {rsi}")
                 
         # Sort by RSI (most extreme first)
-        extreme_coins.sort(key=lambda x: x["rsi"] if x["status"] in ["OVERSOLD", "WEAK"] else 100 - x["rsi"])
+        extreme_coins.sort(key=lambda x: x["rsi"] if x["status"] == "OVERSOLD" else 100 - x["rsi"])
         
         # Log optimization stats
-        logger.info(f"RSI scan complete - Extreme: {len(extreme_coins)}, Neutral skipped: {neutral_count}")
+        logger.info(f"RSI EXTREMES ONLY - Found: {len(extreme_coins)}, Skipped (31-69): {neutral_count}")
         
         return extreme_coins
         

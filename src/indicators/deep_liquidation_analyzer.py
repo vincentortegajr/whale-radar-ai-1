@@ -182,28 +182,22 @@ class DeepLiquidationAnalyzer:
         # Get RSI data
         rsi_data = await self.client.get_rsi_heatmap("1h", 200)
         
-        # Find extremes - EXCLUDE NEUTRAL to save API calls
+        # Find ONLY EXTREME oversold/overbought - EXCLUDE neutral, weak, strong
         oversold = []
         overbought = []
-        weak = []
-        strong = []
+        skipped_count = 0
         
         for coin in rsi_data:
             rsi_value = coin.get('rsi', 50)
             
-            # Skip neutral coins (45-55 range) to save API calls
-            if 45 <= rsi_value <= 55:
-                continue
-                
-            # Categorize extremes
+            # ONLY process extreme oversold (≤30) or overbought (≥70)
             if rsi_value <= 30:
                 oversold.append(coin)
-            elif rsi_value > 30 and rsi_value < 45:
-                weak.append(coin)
-            elif rsi_value > 55 and rsi_value < 70:
-                strong.append(coin)
             elif rsi_value >= 70:
                 overbought.append(coin)
+            else:
+                # Skip everything else (31-69 range)
+                skipped_count += 1
                 
         # Sort by RSI
         oversold.sort(key=lambda x: x['rsi'])
@@ -213,11 +207,9 @@ class DeepLiquidationAnalyzer:
         top_oversold = oversold[:10]
         top_overbought = overbought[:10]
         
-        # Analyze liquidations for each category
+        # Analyze liquidations for extremes only
         oversold_analyses = []
         overbought_analyses = []
-        weak_analyses = []
-        strong_analyses = []
         
         # Process oversold coins
         for coin in top_oversold:
@@ -255,17 +247,16 @@ class DeepLiquidationAnalyzer:
                 logger.error(f"Error analyzing overbought {coin['symbol']}: {e}")
                 
         # Log statistics
-        logger.info(f"RSI Distribution - Oversold: {len(oversold)}, Weak: {len(weak)}, "
-                   f"Strong: {len(strong)}, Overbought: {len(overbought)}, "
-                   f"Neutral skipped: {len(rsi_data) - len(oversold) - len(weak) - len(strong) - len(overbought)}")
+        logger.info(f"RSI EXTREMES ONLY - Oversold (≤30): {len(oversold)}, "
+                   f"Overbought (≥70): {len(overbought)}, "
+                   f"Skipped (31-69): {skipped_count}")
         
         return {
             'oversold': oversold_analyses,
             'overbought': overbought_analyses,
-            'weak': weak_analyses,
-            'strong': strong_analyses,
             'total_analyzed': len(oversold_analyses) + len(overbought_analyses),
-            'api_calls_saved': len(rsi_data) - len(oversold) - len(overbought) - len(weak) - len(strong)
+            'total_extreme_coins': len(oversold) + len(overbought),
+            'api_calls_saved': skipped_count
         }
         
     async def _fetch_liquidation_levels(self, symbol: str, timeframe: str) -> List[Dict]:
