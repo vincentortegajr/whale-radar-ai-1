@@ -63,18 +63,25 @@ class RSIAnalyzer:
             timestamp=datetime.now(timezone.utc)
         )
         
-    async def scan_extreme_rsi(self, timeframe: str = "1h", limit: int = 50) -> List[Dict]:
+    async def scan_extreme_rsi(self, timeframe: str = "1h", limit: int = 50, exclude_neutral: bool = True) -> List[Dict]:
         """Scan for coins with extreme RSI values"""
-        logger.info(f"Scanning for extreme RSI on {timeframe}")
+        logger.info(f"Scanning for extreme RSI on {timeframe} (exclude_neutral: {exclude_neutral})")
         
         # Get RSI heatmap data
         rsi_data = await self.client.get_rsi_heatmap(timeframe, limit)
         
         extreme_coins = []
+        neutral_count = 0
         
         for coin in rsi_data:
             symbol = coin.get("symbol")
             rsi = coin.get("rsi", 50)
+            
+            # Skip neutral zone if requested (saves API calls)
+            if exclude_neutral and 45 <= rsi <= 55:
+                neutral_count += 1
+                logger.debug(f"Skipping neutral coin {symbol} with RSI {rsi}")
+                continue
             
             # Check for extremes
             if rsi <= self.oversold_threshold:
@@ -91,9 +98,26 @@ class RSIAnalyzer:
                     "status": "OVERBOUGHT",
                     "timeframe": timeframe
                 })
+            elif rsi < 45:  # Weak but not oversold
+                extreme_coins.append({
+                    "symbol": symbol,
+                    "rsi": rsi,
+                    "status": "WEAK",
+                    "timeframe": timeframe
+                })
+            elif rsi > 55:  # Strong but not overbought
+                extreme_coins.append({
+                    "symbol": symbol,
+                    "rsi": rsi,
+                    "status": "STRONG",
+                    "timeframe": timeframe
+                })
                 
         # Sort by RSI (most extreme first)
-        extreme_coins.sort(key=lambda x: x["rsi"] if x["status"] == "OVERSOLD" else 100 - x["rsi"])
+        extreme_coins.sort(key=lambda x: x["rsi"] if x["status"] in ["OVERSOLD", "WEAK"] else 100 - x["rsi"])
+        
+        # Log optimization stats
+        logger.info(f"RSI scan complete - Extreme: {len(extreme_coins)}, Neutral skipped: {neutral_count}")
         
         return extreme_coins
         

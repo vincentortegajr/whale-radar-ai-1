@@ -146,12 +146,15 @@ The new comprehensive scanner provides:
 - Calculates liquidation imbalance percentages
 - Predicts next whale targets with reasoning
 
-### RSI Extreme Liquidation Verification
-- Takes top 10 RSI oversold coins
-- Takes top 10 RSI overbought coins
+### RSI Extreme Liquidation Verification (OPTIMIZED)
+- **NEW**: Automatically excludes neutral RSI (45-55) to save API calls
+- Takes top 10 RSI oversold coins (≤30)
+- Takes top 10 RSI overbought coins (≥70)
+- Also tracks weak (<45) and strong (>55) for comprehensive view
 - Verifies if they're TRULY oversold/overbought based on liquidations
 - Filters out false RSI signals using liquidation data
 - Identifies the best opportunities with highest liquidation scores
+- Shows API calls saved by skipping neutral zone
 
 ### Complete Data Output
 - Total long/short liquidations per coin

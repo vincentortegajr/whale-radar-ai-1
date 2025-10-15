@@ -112,8 +112,13 @@ Based on Price vs OI + Price vs Volume + Volume vs OI
         # Get RSI extreme analyses
         rsi_data = await self.analyzer.analyze_rsi_extremes_liquidations()
         
-        report = """🐋 WHALE RADAR - RSI EXTREMES LIQUIDATION CHECK 🎯
+        report = f"""🐋 WHALE RADAR - RSI EXTREMES LIQUIDATION CHECK 🎯
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 RSI ANALYSIS OPTIMIZATION
+• Neutral coins (45-55 RSI) EXCLUDED to save API calls
+• API calls saved: {rsi_data.get('api_calls_saved', 0)}
+• Total coins analyzed: {rsi_data.get('total_analyzed', 0)}
 
 📊 RSI OVERSOLD vs LIQUIDATION ANALYSIS
 Checking if RSI oversold coins are TRULY oversold based on liquidations
