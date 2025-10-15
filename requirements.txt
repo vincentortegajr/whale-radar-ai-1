@@ -25,6 +25,7 @@ websocket-client>=1.7.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 colorlog>=6.8.0
+colorama>=0.4.6
 schedule>=1.2.0
 pytz>=2023.3
 

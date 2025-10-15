@@ -5,7 +5,7 @@ import signal
 import sys
 from datetime import datetime, timezone
 from typing import List
-from src.utils.logger import setup_logger
+from src.utils.logger_setup import setup_logger
 from src.utils.config import settings, validate_config
 from src.api.coinglass_client import CoinGlassClient
 from src.api.telegram_bot import TelegramNotifier

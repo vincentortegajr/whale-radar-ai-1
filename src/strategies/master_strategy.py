@@ -1,9 +1,9 @@
 """Master Strategy - The Triple Threat Combination"""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from src.utils.logger import setup_logger
+from src.utils.logger_setup import setup_logger
 from src.utils.config import settings
 from src.api.coinglass_client import CoinGlassClient
 from src.indicators.visual_screener import VisualScreenerAnalyzer, ScreenerData

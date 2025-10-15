@@ -3,9 +3,10 @@
 import asyncio
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
-from telegram import Bot, ParseMode
+from telegram import Bot
+from telegram.constants import ParseMode
 from telegram.error import TelegramError
-from src.utils.logger import setup_logger
+from src.utils.logger_setup import setup_logger
 from src.utils.config import settings
 from src.strategies.master_strategy import MasterSignal
 

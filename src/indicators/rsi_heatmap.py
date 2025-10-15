@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from src.utils.logger import setup_logger
+from src.utils.logger_setup import setup_logger
 from src.utils.config import settings
 from src.api.coinglass_client import CoinGlassClient
 

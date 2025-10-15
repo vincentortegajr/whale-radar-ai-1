@@ -6,7 +6,7 @@ import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import json
-from src.utils.logger import setup_logger
+from src.utils.logger_setup import setup_logger
 from src.utils.config import settings
 
 logger = setup_logger(__name__)
