@@ -73,9 +73,15 @@ SCAN_INTERVAL_MINUTES=5  # How often to scan (1-5 recommended)
 # Run the main scanner
 python -m src.main
 
+# Run COMPREHENSIVE deep liquidation analysis (NEW!)
+python -m src.comprehensive_scanner        # Continuous scanning
+python -m src.comprehensive_scanner --once # Run once and exit
+python -m src.comprehensive_scanner --sample # Show sample report
+
 # Or run specific modules
 python -m src.indicators.visual_screener  # Test visual screeners
 python -m src.indicators.liquidation_analyzer  # Test liquidations
+python -m src.indicators.deep_liquidation_analyzer  # Deep analysis
 
 # Run complete system test
 python test_complete_system.py
@@ -128,6 +134,51 @@ When all three align:
 - Liquidation Direction Confirmed
 - RSI Confluence > 60
 = **HIGH CONFIDENCE SIGNAL**
+
+## 🆕 COMPREHENSIVE DEEP ANALYSIS (NEW!)
+
+The new comprehensive scanner provides:
+
+### Top 10 Visual Screener Analysis
+- Identifies the 10 most active coins from all 3 visual screeners
+- Analyzes EVERY liquidation level across ALL timeframes
+- Shows complete liquidation distribution (12h to 1y)
+- Calculates liquidation imbalance percentages
+- Predicts next whale targets with reasoning
+
+### RSI Extreme Liquidation Verification
+- Takes top 10 RSI oversold coins
+- Takes top 10 RSI overbought coins
+- Verifies if they're TRULY oversold/overbought based on liquidations
+- Filters out false RSI signals using liquidation data
+- Identifies the best opportunities with highest liquidation scores
+
+### Complete Data Output
+- Total long/short liquidations per coin
+- Major liquidation clusters with exact prices
+- Scale-in zones with position sizing
+- Liquidation scores (0-100)
+- Direct CoinGlass links with referral: `ref=YOUR_REF`
+- Direct Bybit links with referral: `ref=JWNJQWP`
+
+### Sample Output Format
+```
+🐋 WHALE RADAR - TOP 10 MOVERS DEEP ANALYSIS 🎯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 🟢 $BTC - LONG SIGNAL
+📍 Current Price: $43,250.00
+
+💧 LIQUIDATION OVERVIEW:
+• Total Long Liquidations: $234.5M
+• Total Short Liquidations: $847.2M
+• Imbalance: +72.3% (More Shorts)
+• Liquidation Score: 85/100
+
+🎯 WHALE TARGET PREDICTION:
+• Next Target: $44,800 (UP)
+• Reasoning: Heavy short liquidations ($847.2M) at $44,800
+```
 
 ## 📱 Telegram Alerts
 

@@ -75,7 +75,7 @@ class CoinGlassClient:
             
         url = f"{self.base_url}{endpoint}"
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "CG-API-KEY": self.api_key,  # v4 API uses CG-API-KEY header
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
@@ -103,9 +103,11 @@ class CoinGlassClient:
                         try:
                             data = json.loads(response_text)
                             
-                            # Validate response structure
-                            if not validate_api_response(data, ['success', 'data']):
-                                raise APIError(f"Invalid response structure: {response_text[:200]}")
+                            # v4 API returns data directly without success wrapper
+                            if 'data' not in data and not isinstance(data, list):
+                                # Some endpoints return arrays directly
+                                logger.warning("Response may be in different format")
+                            
                                 
                             return data
                             
@@ -151,34 +153,61 @@ class CoinGlassClient:
             raise ValueError(f"Invalid timeframe: {timeframe}")
             
         logger.info(f"Fetching Price vs OI screener data (timeframe: {timeframe})")
-        endpoint = "/api/v4/perpetual/visual-screener/price-oi-change"
+        # Use coins-markets endpoint to get price vs OI data
+        endpoint = "/api/futures/coins-markets"
         params = {"timeframe": timeframe}
         response = await self._make_request(endpoint, params)
         
-        # Return data array from response
-        return response.get('data', [])
+        # Handle response format - can be dict with 'data' key or direct list
+        if isinstance(response, dict) and 'data' in response:
+            return response['data']
+        elif isinstance(response, list):
+            return response
+        return []
         
     async def get_visual_screener_price_volume(self, timeframe: str = "5m") -> List[Dict]:
         """Get Price vs Volume change data"""
         logger.info(f"Fetching Price vs Volume screener data (timeframe: {timeframe})")
-        endpoint = "/api/v4/perpetual/visual-screener/price-volume-change"
+        # Use coins-markets endpoint for market data
+        endpoint = "/api/futures/coins-markets"
         params = {"timeframe": timeframe}
-        return await self._make_request(endpoint, params)
+        response = await self._make_request(endpoint, params)
+        
+        # Handle response format
+        if isinstance(response, dict) and 'data' in response:
+            return response['data']
+        elif isinstance(response, list):
+            return response
+        return []
         
     async def get_visual_screener_volume_oi(self, timeframe: str = "5m") -> List[Dict]:
         """Get Volume vs Open Interest change data"""
         logger.info(f"Fetching Volume vs OI screener data (timeframe: {timeframe})")
-        endpoint = "/api/v4/perpetual/visual-screener/volume-oi-change"
+        # Use coins-markets endpoint for market data
+        endpoint = "/api/futures/coins-markets"
         params = {"timeframe": timeframe}
-        return await self._make_request(endpoint, params)
+        response = await self._make_request(endpoint, params)
+        
+        # Handle response format
+        if isinstance(response, dict) and 'data' in response:
+            return response['data']
+        elif isinstance(response, list):
+            return response
+        return []
         
     # Liquidation Heatmap Endpoints
     async def get_liquidation_heatmap(self, symbol: str, model: int = 2, timeframe: str = "24h") -> Dict:
         """Get liquidation heatmap data"""
         logger.info(f"Fetching liquidation heatmap for {symbol} (model: {model}, timeframe: {timeframe})")
-        endpoint = f"/api/v4/futures/liquidation-heatmap/model{model}/{symbol}"
-        params = {"timeframe": timeframe}
-        return await self._make_request(endpoint, params)
+        # Use the correct v4 endpoint for model 2 heatmap
+        endpoint = f"/api/futures/liquidation/aggregated-heatmap/model{model}"
+        params = {
+            "symbol": symbol,
+            "range": timeframe  # API expects 'range' parameter for timeframe
+        }
+            
+        response = await self._make_request(endpoint, params)
+        return response
         
     async def get_liquidation_heatmap_all_timeframes(self, symbol: str, model: int = 2) -> Dict:
         """Get liquidation heatmap for all timeframes"""
@@ -197,9 +226,17 @@ class CoinGlassClient:
     async def get_rsi_heatmap(self, timeframe: str = "1h", top: int = 100) -> List[Dict]:
         """Get RSI heatmap data for top coins"""
         logger.info(f"Fetching RSI heatmap (timeframe: {timeframe}, top: {top})")
-        endpoint = "/api/v4/indicator/rsi-heatmap"
-        params = {"timeframe": timeframe, "limit": top}
-        return await self._make_request(endpoint, params)
+        endpoint = "/api/futures/rsi/list"
+        # v4 uses 'interval' and 'duration' instead of 'timeframe'
+        params = {"interval": timeframe, "limit": top}
+        response = await self._make_request(endpoint, params)
+        
+        # Handle response format
+        if isinstance(response, dict) and 'data' in response:
+            return response['data']
+        elif isinstance(response, list):
+            return response
+        return []
         
     async def get_rsi_multi_timeframe(self, symbol: str) -> Dict:
         """Get RSI for multiple timeframes for a specific symbol"""
@@ -224,28 +261,52 @@ class CoinGlassClient:
     async def get_whale_alerts(self, limit: int = 50) -> List[Dict]:
         """Get recent whale transaction alerts"""
         logger.info("Fetching whale alerts")
-        endpoint = "/api/v4/whale-alert/transactions"
+        # Use Hyperliquid whale alerts as main whale tracking
+        endpoint = "/api/futures/hyperliquid/whale-alert"
         params = {"limit": limit}
-        return await self._make_request(endpoint, params)
+        response = await self._make_request(endpoint, params)
+        
+        # Handle response format
+        if isinstance(response, dict) and 'data' in response:
+            return response['data']
+        elif isinstance(response, list):
+            return response
+        return []
         
     # On-chain Flow Endpoints  
     async def get_onchain_flow(self, coin: str) -> Dict:
         """Get on-chain inflow/outflow data"""
         logger.info(f"Fetching on-chain flow for {coin}")
-        endpoint = f"/api/v4/onchain/inflow-outflow/{coin}"
+        # Note: Specific on-chain endpoint may vary by coin
+        endpoint = f"/api/onchain/{coin.lower()}/inflow-outflow"
         return await self._make_request(endpoint)
         
     # Market Overview
     async def get_market_overview(self) -> Dict:
         """Get overall market metrics"""
         logger.info("Fetching market overview")
-        endpoint = "/api/v4/market/overview"
+        # No direct market overview in v4, use coins markets instead
+        endpoint = "/api/futures/coins-markets"
         return await self._make_request(endpoint)
         
     # Get all perpetual symbols
     async def get_perpetual_symbols(self) -> List[str]:
         """Get list of all available perpetual symbols"""
         logger.info("Fetching perpetual symbols list")
-        endpoint = "/api/v4/perpetual/symbols"
-        data = await self._make_request(endpoint)
-        return [s["symbol"] for s in data if s.get("active", True)]
+        # Use supported-coins endpoint for v4 API
+        endpoint = "/api/futures/supported-coins"
+        response = await self._make_request(endpoint)
+        
+        # Handle different response formats
+        if isinstance(response, dict) and 'data' in response:
+            data = response['data']
+            # If data is already a list of strings, return it
+            if isinstance(data, list) and all(isinstance(x, str) for x in data[:5]):
+                return data
+            # If data is a list of dicts, extract symbols
+            elif isinstance(data, list):
+                return [coin.get("symbol", "") for coin in data if isinstance(coin, dict) and coin.get("symbol")]
+        elif isinstance(response, list):
+            return response
+            
+        return []

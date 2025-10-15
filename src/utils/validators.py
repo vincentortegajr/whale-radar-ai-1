@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from src.utils.logger_setup import setup_logger
 
@@ -23,7 +23,8 @@ class PriceData(BaseModel):
     price: float = Field(gt=0)
     timestamp: datetime
     
-    @validator('price')
+    @field_validator('price')
+    @classmethod
     def validate_price(cls, v):
         if v <= 0 or v > 1_000_000:  # Max $1M per coin reasonable
             raise ValueError(f'Invalid price: {v}')
@@ -36,7 +37,8 @@ class VolumeData(BaseModel):
     volume_24h: float = Field(ge=0)
     volume_change_pct: float = Field(ge=-100)  # Can't lose more than 100%
     
-    @validator('volume_change_pct')
+    @field_validator('volume_change_pct')
+    @classmethod
     def validate_volume_change(cls, v):
         if v < -100 or v > 100000:  # 1000x max reasonable
             raise ValueError(f'Invalid volume change: {v}%')
@@ -47,9 +49,10 @@ class LiquidationData(BaseModel):
     """Liquidation data validation"""
     price: float = Field(gt=0)
     value_usd: float = Field(ge=0)
-    type: str = Field(regex='^(long|short)$')
+    type: str = Field(pattern='^(long|short)$')
     
-    @validator('value_usd')
+    @field_validator('value_usd')
+    @classmethod
     def validate_liquidation_value(cls, v):
         if v < 0 or v > 10_000_000_000:  # Max $10B reasonable
             raise ValueError(f'Invalid liquidation value: ${v}')
@@ -60,9 +63,10 @@ class RSIData(BaseModel):
     """RSI data validation"""
     symbol: str
     rsi: float = Field(ge=0, le=100)
-    timeframe: str = Field(regex='^(5m|15m|1h|4h|12h|1d|1w)$')
+    timeframe: str = Field(pattern='^(5m|15m|1h|4h|12h|1d|1w)$')
     
-    @validator('rsi')
+    @field_validator('rsi')
+    @classmethod
     def validate_rsi(cls, v):
         if not 0 <= v <= 100:
             raise ValueError(f'Invalid RSI value: {v}')

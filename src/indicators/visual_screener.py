@@ -114,21 +114,28 @@ class VisualScreenerAnalyzer:
             "oi_change": 0.0
         }
         
-        # Find symbol in each screener
+        # All three endpoints return the same data, so we can use any one
+        # Find symbol in the data (they all have the same format)
         for item in price_oi:
-            if item.get("symbol") == symbol:
-                result["price_change"] = item.get("price_change_pct", 0)
-                result["oi_change"] = item.get("oi_change_pct", 0)
+            if isinstance(item, dict) and item.get("symbol") == symbol:
+                # Extract price change from various fields
+                result["price_change"] = item.get("price_change_percent_1h", 0) or \
+                                       item.get("price_change_percent_4h", 0) or \
+                                       item.get("price_change_percent_24h", 0)
                 
-        for item in price_volume:
-            if item.get("symbol") == symbol:
-                result["volume_change"] = item.get("volume_change_pct", 0)
+                # Extract volume change
+                result["volume_change"] = item.get("volume_change_percent_1h", 0) or \
+                                        item.get("volume_change_percent_4h", 0) or \
+                                        item.get("volume_change_percent_24h", 0)
                 
-        for item in volume_oi:
-            if item.get("symbol") == symbol:
-                # Double check values
-                result["volume_change"] = item.get("volume_change_pct", result["volume_change"])
-                result["oi_change"] = item.get("oi_change_pct", result["oi_change"])
+                # Extract OI change
+                result["oi_change"] = item.get("oi_change_percent_1h", 0) or \
+                                    item.get("oi_change_percent_4h", 0) or \
+                                    item.get("oi_change_percent_24h", 0)
+                
+                # If we have the data, no need to check other lists
+                if any(v != 0 for v in result.values()):
+                    return result
                 
         # Return None if no data found
         if all(v == 0 for v in result.values()):

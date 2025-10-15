@@ -9,6 +9,7 @@ from src.api.coinglass_client import CoinGlassClient
 from src.indicators.visual_screener import VisualScreenerAnalyzer, ScreenerData
 from src.indicators.liquidation_analyzer import LiquidationAnalyzer, LiquidationAnalysis
 from src.indicators.rsi_heatmap import RSIAnalyzer, RSIData
+from src.indicators.deep_liquidation_analyzer import DeepLiquidationAnalyzer
 
 logger = setup_logger(__name__)
 
